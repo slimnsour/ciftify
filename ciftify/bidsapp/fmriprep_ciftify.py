@@ -27,6 +27,7 @@ Options:
   --older-fmriprep                Read from fmriprep derivatives that are version 1.1.8 or older
 
   --fmriprep-workdir PATH         Path to working directory for fmriprep
+  --skip-bids-validation          Skip bids validation for fmriprep and ciftify
   --fs-license FILE               The freesurfer license file
   --n_cpus INT                    Number of cpu's available. Defaults to the value
                                   of the OMP_NUM_THREADS environment variable
@@ -106,6 +107,7 @@ class Settings(object):
                                 arguments['<output_dir>'],
                                 arguments['--read-from-derivatives'],
                                 arguments['--func-preproc-dirname'])
+        self.skip_bids_validation = arguments['--skip-bids-validation']
         self.bids_layout = self.__get_bids_layout()
         self.analysis_level = self.__get_analysis_level(arguments['<analysis_level>'])
         self.participant_labels = self.__get_from_bids_layout(arguments['--participant_label'], 'subject')
@@ -152,9 +154,11 @@ class Settings(object):
 
     def __get_bids_layout(self):
         '''run the BIDS validator and produce the bids_layout'''
-        run("bids-validator {}".format(self.bids_dir),  dryrun = DRYRUN)
+        if not self.skip_bids_validation:
+            run("bids-validator {}".format(self.bids_dir),  dryrun = DRYRUN)
         try:
-            layout = BIDSLayout(self.bids_dir, exclude=['derivatives'])
+            layout = BIDSLayout(self.bids_dir,
+                validate = not(self.skip_bids_validation), exclude = ['derivatives'])
         except:
             logger.critical('Could not parse <bids_dir> {}'.format(self.bids_dir))
             sys.exit(1)
@@ -286,6 +290,8 @@ def find_or_build_fs_dir(settings, participant_label):
             cmd.extend(['--work-dir',settings.fmriprep_work])
         if settings.fs_license:
             cmd.extend(['--fs-license-file', settings.fs_license])
+        if settings.skip_bids_validation:
+            cmd.extend(['--skip-bids-validation'])
         if settings.fmriprep_vargs:
             cmd.append(settings.fmriprep_vargs)
         run(cmd, dryrun = DRYRUN)
@@ -436,6 +442,8 @@ def run_fmriprep_func(bold_input, settings):
         fcmd.extend(['--work-dir',settings.fmriprep_work])
     if settings.fs_license:
         fcmd.extend(['--fs-license-file', settings.fs_license])
+    if settings.skip_bids_validation:
+        fcmd.extend(['--skip-bids-validation'])
     if settings.fmriprep_vargs:
         fcmd.append(settings.fmriprep_vargs)
     run(fcmd, dryrun = DRYRUN)
